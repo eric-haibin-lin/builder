@@ -1,6 +1,6 @@
 # syntax = docker/dockerfile:experimental
 ARG ROCM_VERSION=3.7
-ARG BASE_CUDA_VERSION=10.1
+ARG BASE_CUDA_VERSION=11.1
 ARG GPU_IMAGE=nvidia/cuda:${BASE_CUDA_VERSION}-devel-centos7
 FROM centos:7 as base
 
@@ -46,7 +46,7 @@ RUN rm -rf /opt/python/cp33-cp33m /opt/_internal/cpython-3.3.6
 RUN rm -rf /opt/python/cp34-cp34m /opt/_internal/cpython-3.4.6
 
 FROM base as cuda
-ARG BASE_CUDA_VERSION=10.1
+ARG BASE_CUDA_VERSION=11.1
 # Install CUDA
 ADD ./common/install_cuda.sh install_cuda.sh
 RUN bash ./install_cuda.sh ${BASE_CUDA_VERSION} && rm install_cuda.sh
@@ -64,7 +64,7 @@ RUN bash ./install_patchelf.sh && rm install_patchelf.sh
 RUN cp $(which patchelf) /patchelf
 
 FROM base as magma
-ARG BASE_CUDA_VERSION=10.1
+ARG BASE_CUDA_VERSION=11.1
 # Install magma
 ADD ./common/install_magma.sh install_magma.sh
 RUN bash ./install_magma.sh ${BASE_CUDA_VERSION} && rm install_magma.sh
@@ -127,7 +127,7 @@ COPY --from=libpng             /usr/local/lib/libpng*                /usr/local/
 COPY --from=libpng             /usr/local/lib/pkgconfig              /usr/local/lib/pkgconfig
 
 FROM common as cpu_final
-ARG BASE_CUDA_VERSION=10.1
+ARG BASE_CUDA_VERSION=11.1
 RUN yum install -y yum-utils centos-release-scl
 RUN yum-config-manager --enable rhel-server-rhscl-7-rpms
 RUN yum install -y devtoolset-7-gcc devtoolset-7-gcc-c++ devtoolset-7-gcc-gfortran devtoolset-7-binutils
@@ -146,18 +146,3 @@ FROM cpu_final as cuda_final
 RUN rm -rf /usr/local/cuda-${BASE_CUDA_VERSION}
 COPY --from=cuda     /usr/local/cuda-${BASE_CUDA_VERSION}  /usr/local/cuda-${BASE_CUDA_VERSION}
 COPY --from=magma    /usr/local/cuda-${BASE_CUDA_VERSION}  /usr/local/cuda-${BASE_CUDA_VERSION}
-
-FROM common as rocm_final
-ARG ROCM_VERSION=3.7
-ARG PYTORCH_ROCM_ARCH
-ENV PYTORCH_ROCM_ARCH ${PYTORCH_ROCM_ARCH}
-# Install ROCm
-ADD ./common/install_rocm.sh install_rocm.sh
-RUN bash ./install_rocm.sh ${ROCM_VERSION} && rm install_rocm.sh
-# cmake is already installed inside the rocm base image, but both 2 and 3 exist
-# cmake3 is needed for the later MIOpen custom build, so that step is last.
-RUN yum install -y cmake3 && \
-    rm -f /usr/bin/cmake && \
-    ln -s /usr/bin/cmake3 /usr/bin/cmake
-ADD ./common/install_miopen.sh install_miopen.sh
-RUN bash ./install_miopen.sh ${ROCM_VERSION} && rm install_miopen.sh
